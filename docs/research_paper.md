@@ -45,16 +45,20 @@ This work contributes:
 hybrid IDS work, CIC-IDS2017 baseline papers.)*
 
 ## 3. System Architecture
+
+```
 Network Traffic
-|
-v
+     |
+     v
 [Suricata] --eve.json-->  [Logstash] --> [Elasticsearch] --> [Kibana Dashboard]
 [Zeek]     --conn/dns/http logs-->  |            ^
-|                              |            |
-v                              v            |
+     |                              |            |
+     v                              v            |
 [Python Detectors]  <-------->  [ML Anomaly Engine]
-|                              |
-+------------> [Alert Correlation Layer] ----> [FastAPI] --> Dashboard/Alerts/Timeline
+     |                              |
+     +------------> [Alert Correlation Layer] ----> [FastAPI] --> Dashboard/Alerts/Timeline
+```
+
 Full component breakdown is in [architecture.md](architecture.md).
 
 ## 4. Methodology
@@ -96,9 +100,21 @@ resolved by `default-rule-path` (`/var/lib/suricata/rules/` in this
 deployment — note this can differ from the commonly documented
 `/etc/suricata/rules/` depending on distribution packaging).
 
-### 5.2 Zeek Deployment — ⬜ In progress
+### 5.2 Zeek Deployment — ✅ Complete
+Zeek 8.2.1 was deployed via zeekctl and extended with a custom script
+implementing three DNS tunneling heuristics: abnormally long query names,
+high per-host query rate, and high per-host TXT record volume (all using
+Zeek's SumStats framework with a 1-minute sliding window). Community ID
+logging was enabled to support future correlation between Zeek connection
+records and Suricata alerts referring to the same flow.
 
-### 5.3 Logstash / Elasticsearch Pipeline — ⬜ In progress
+### 5.3 Logstash / Elasticsearch Pipeline — ✅ Complete
+Logstash ingests Suricata's `eve.json` and Zeek's `conn.log` via file
+input plugins, applying light parsing (JSON codec for Suricata; CSV
+parsing with explicit column mapping for Zeek's tab-separated format) and
+writing to daily-rotated Elasticsearch indices (`nids-alerts-*`,
+`nids-conn-*`). Kibana data views were created on top of both indices for
+interactive exploration.
 
 ### 5.4 Python Detection Modules — ⬜ Not started
 
@@ -118,4 +134,54 @@ pipeline — traffic capture, rule matching, and alert logging — functions
 end-to-end.
 
 Excerpt from `fast.log`:
+```
+07/08/2026-23:53:35.155629 [**] [1:9000010:1] CUSTOM Possible Port Scan
+(many ports, single source) [**] [Classification: Detection of a Network
+Scan] [Priority: 3] {TCP} 192.168.100.114:33066 -> 192.168.100.115:80
+```
 
+See screenshots: `screenshots/debian_nmap.png`, `screenshots/suricata_scan.png`,
+`screenshots/our_suricata_rule.png`.
+
+### 6.2 Live Attack Simulation — Zeek Connection-Level Evidence
+
+The same TCP SYN scan was independently confirmed in Zeek's `conn.log`:
+21+ connection records were observed from a single source port to
+sequential destination ports within milliseconds of each other, all with
+`REJ` (closed-port) connection state — the same attack, captured
+independently at the connection-log level rather than as a signature
+match. This demonstrates the value of the hybrid approach: Suricata
+provides a fast, human-readable alert, while Zeek provides the structured,
+feature-rich record needed for later ML-based detection of attacks that
+don't match a static signature (e.g., slow scans below Suricata's
+threshold windows).
+
+### 6.3 End-to-End Pipeline Verification (Kibana)
+
+Querying the `nids-alerts` Elasticsearch index via Kibana Discover
+confirmed 51,231 total indexed Suricata events over the monitoring period,
+of which 270 matched `alert.signature: "CUSTOM*"` — i.e., were generated
+specifically by this project's custom ruleset rather than the bundled
+Emerging Threats rules. This confirms the full pipeline (capture → rule
+match → log → parse → index → dashboard) functions correctly and that the
+custom rules are contributing a distinct, attributable share of detections.
+
+### 6.4 Detection Accuracy (Benchmark) — ⬜ Pending
+*(To be completed once the full pipeline and evaluation script against
+CIC-IDS2017 are ready. Will report precision/recall/F1 per attack class.)*
+
+## 7. Discussion
+
+*(TODO: false-positive analysis, limitations of signature-only vs hybrid
+approach, lessons learned from the network configuration challenges
+encountered during lab setup — e.g., WiFi bridging behavior with VMware,
+DHCP failures on bridged adapters.)*
+
+## 8. Conclusion and Future Work
+
+*(TODO — to be written after full implementation.)*
+
+## References
+
+*(TODO — add citations: Suricata docs, Zeek docs, CIC-IDS2017 dataset paper,
+related hybrid IDS literature.)*
