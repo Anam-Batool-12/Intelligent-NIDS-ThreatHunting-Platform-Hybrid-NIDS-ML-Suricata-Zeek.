@@ -74,10 +74,7 @@ brute force, SQL injection, and DNS tunneling. Full source:
 [`capture/suricata/rules/custom.rules`](../capture/suricata/rules/custom.rules).
 
 ### Verification
-A live TCP SYN scan from a second VM on the same network segment was used
-to confirm the rules load and fire correctly (see
-[research_paper.md § 6.1](research_paper.md#61-live-attack-simulation--port-scan-detection)
-for the log excerpt and screenshots).
+
 
 ### Useful commands
 ```bash
@@ -90,7 +87,6 @@ sudo systemctl enable suricata  # ensure it survives reboot
 
 # Watch alerts live
 sudo tail -f /var/log/suricata/fast.log
-
 # Check interface capture stats
 sudo suricatasc -c "iface-stat eth0"
 ```
